@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legend Beat v3</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Jura:wght@300;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0d0d12;
+            --accent-color: #00f2ff;
+            --accent-glow: rgba(0, 242, 255, 0.4);
+            --secondary-color: #ff0055;
+            --text-color: #e0e0e0;
+            --guide-color: #ffff00;
+            --font-main: 'Jura', sans-serif;
+        }
+
+        body {
+            margin: 0;
+            background: radial-gradient(circle at center, #1b1b25 0%, #000000 100%);
+            color: var(--text-color);
+            font-family: var(--font-main);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #app {
+            text-align: center;
+            width: 100%;
+            max-width: 500px;
+            padding-bottom: 20px;
+            position: relative; /* ヘッダー配置用 */
+        }
+
+        /* --- ヘッダー（言語切替・ヘルプ） --- */
+        .header-controls {
+            position: absolute;
+            top: -60px; /* タイトルの上に配置 */
+            right: 10px;
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+        }
+
+        .icon-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid var(--accent-color);
+            color: var(--accent-color);
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1rem;
+            transition: all 0.2s;
+            text-shadow: 0 0 5px var(--accent-glow);
+        }
+
+        .lang-btn {
+            border-radius: 20px;
+            width: auto;
+            padding: 0 12px;
+            font-size: 0.8rem;
+        }
+
+        .icon-btn:hover {
+            background: var(--accent-glow);
+            color: #000;
+            box-shadow: 0 0 15px var(--accent-glow);
+        }
+
+        /* --- モーダル --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(5px);
+            z-index: 999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: #1a1a24;
+            border: 1px solid var(--accent-color);
+            box-shadow: 0 0 30px rgba(0, 242, 255, 0.2);
+            width: 90%;
+            max-width: 500px;
+            max-height: 85vh;
+            overflow-y: auto;
+            border-radius: 12px;
+            padding: 25px;
+            text-align: left;
+            position: relative;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: transparent;
+            border: none;
+            color: var(--secondary-color);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        .manual-section h3 {
+            color: var(--accent-color);
+            border-bottom: 1px solid #444;
+            padding-bottom: 5px;
+            margin-top: 20px;
+            font-size: 1.2rem;
+        }
+
+        .manual-section p, .manual-section li {
+            font-size: 0.9rem;
+            line-height: 1.6;
+            color: #ccc;
+        }
+        
+        .manual-list dt {
+            color: #fff;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .manual-list dd {
+            margin-left: 15px;
+            font-size: 0.85rem;
+            color: #aaa;
+            margin-bottom: 5px;
+        }
+
+        /* --- メインUI --- */
+        .app-title {
+            font-size: 2.5rem;
+            margin: 0 0 30px 0;
+            color: var(--accent-color);
+            text-shadow: 0 0 15px var(--accent-glow);
+            letter-spacing: 4px;
+            font-weight: 700;
+        }
+
+        .visualizer-container {
+            position: relative;
+            width: 320px;
+            height: 320px;
+            margin: 0 auto 30px;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 10;
+            position: relative;
+            padding: 0 20px;
+        }
+
+        .bpm-display {
+            font-size: 3.5rem;
+            font-weight: 700;
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.1);
+            margin-bottom: 5px;
+        }
+
+        .bpm-label {
+            font-size: 0.8rem;
+            opacity: 0.5;
+            letter-spacing: 4px;
+        }
+
+        .btn-base {
+            font-family: var(--font-main);
+            cursor: pointer;
+            border-radius: 50px;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: 1.2rem;
+            padding: 10px 0;
+            width: 100%;
+        }
+
+        .btn-main {
+            background: transparent;
+            border: 1px solid var(--accent-color);
+            color: var(--accent-color);
+            box-shadow: 0 0 10px var(--accent-glow);
+            padding: 15px 0;
+            font-size: 1.5rem;
+        }
+
+        .btn-main:hover {
+            background: var(--accent-glow);
+            box-shadow: 0 0 20px var(--accent-glow);
+            transform: scale(1.02);
+            color: #000;
+        }
+
+        .btn-main.active {
+            background: var(--accent-color);
+            color: #000;
+            box-shadow: 0 0 40px var(--accent-color);
+        }
+
+        .btn-guide {
+            background: transparent;
+            border: 1px solid #666;
+            color: #888;
+            font-size: 1rem;
+        }
+        
+        .btn-guide.active {
+            border-color: var(--guide-color);
+            color: var(--guide-color);
+            box-shadow: 0 0 10px rgba(255, 255, 0, 0.3);
+            background: rgba(255, 255, 0, 0.1);
+        }
+
+        input[type=range] {
+            width: 100%;
+            accent-color: var(--accent-color);
+            cursor: pointer;
+            height: 30px;
+        }
+
+        select {
+            width: 100%;
+            background: #1a1a24;
+            color: #fff;
+            border: 1px solid #444;
+            padding: 10px;
+            border-radius: 8px;
+            font-family: var(--font-main);
+            font-size: 1rem;
+            cursor: pointer;
+            outline: none;
+        }
+        
+        optgroup { background: #333; }
+
+        .status-text {
+            height: 20px;
+            font-size: 1rem;
+            color: var(--accent-color);
+            margin-top: 5px;
+            opacity: 0.8;
+            letter-spacing: 1px;
+            font-weight: bold;
+        }
+
+        footer {
+            margin-top: 40px;
+            font-size: 0.9rem;
+            opacity: 0.7;
+            letter-spacing: 1px;
+        }
+
+        footer a {
+            color: var(--text-color);
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+        
+        /* スクロールバー装飾 */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #111; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--accent-color); }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <div class="header-controls">
+        <button class="icon-btn lang-btn" @click="toggleLang">
+            {{ currentLang === 'ja' ? 'EN' : 'JP' }}
+        </button>
+        <button class="icon-btn" @click="showModal = true">?</button>
+    </div>
+
+    <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
+        <div class="modal-content">
+            <button class="modal-close" @click="showModal = false">×</button>
+            
+            <div class="manual-section">
+                <h2 style="color:var(--accent-color); margin-top:0;">{{ t.manual.title }}</h2>
+                <p>{{ t.manual.desc }}</p>
+
+                <h3>{{ t.manual.howToUse }}</h3>
+                <ul>
+                    <li><strong>GUIDE ON:</strong> {{ t.manual.guideDesc }}</li>
+                    <li><strong>VISUAL:</strong> {{ t.manual.visualDesc }}</li>
+                </ul>
+
+                <h3>{{ t.manual.legendTitle }}</h3>
+                <dl class="manual-list">
+                    <dt>George Benson (Push)</dt>
+                    <dd>{{ t.manual.legends.benson }}</dd>
+
+                    <dt>Dexter Gordon (Late)</dt>
+                    <dd>{{ t.manual.legends.dexter }}</dd>
+
+                    <dt>Erroll Garner (Delay)</dt>
+                    <dd>{{ t.manual.legends.garner }}</dd>
+
+                    <dt>Tony Williams (Push)</dt>
+                    <dd>{{ t.manual.legends.tony }}</dd>
+
+                    <dt>Charlie Haden (Heavy)</dt>
+                    <dd>{{ t.manual.legends.haden }}</dd>
+                </dl>
+                
+                <p style="margin-top:20px; font-size:0.8rem; opacity:0.6;">
+                    * {{ t.manual.note }}
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <h1 class="app-title">LEGEND BEAT</h1>
+
+    <div class="visualizer-container">
+        <canvas ref="canvas" width="320" height="320"></canvas>
+    </div>
+
+    <div class="controls">
+        <div>
+            <span class="bpm-label">TEMPO</span>
+            <div class="bpm-display">{{ bpm }}</div>
+            <input type="range" v-model.number="bpm" min="40" max="240" step="1" @input="updateBpm">
+        </div>
+
+        <div>
+            <span class="bpm-label" style="display:block; margin-bottom:5px;">{{ t.ui.presetLabel }}</span>
+            <select v-model="selectedPresetKey">
+                <optgroup v-for="(group, key) in presetGroups" :label="key" :key="key">
+                    <option v-for="preset in group" :value="preset.id">
+                        {{ preset.name }}
+                    </option>
+                </optgroup>
+            </select>
+        </div>
+
+        <button class="btn-base btn-guide" :class="{ active: isGuideOn }" @click="toggleGuide">
+            GUIDE: {{ isGuideOn ? 'ON' : 'OFF' }}
+        </button>
+
+        <button class="btn-base btn-main" :class="{ active: isPlaying }" @click="togglePlay">
+            {{ isPlaying ? 'STOP' : t.ui.start }}
+        </button>
+
+        <div class="status-text">{{ statusMessage }}</div>
+    </div>
+
+    <footer>
+        <a href="https://note.com/jazzy_begin" target="_blank">©2026 buro</a>
+    </footer>
+</div>
+
+<script>
+    const { createApp } = Vue;
+
+    // 翻訳データ
+    const translations = {
+        ja: {
+            ui: {
+                start: 'START',
+                presetLabel: 'GROOVE PRESET'
+            },
+            manual: {
+                title: 'LEGEND BEAT マニュアル',
+                desc: '偉大なジャズミュージシャン特有の「タイム感（ズレ）」をシミュレートするトレーニングアプリです。メトロノームだけでは得られない「生きたグルーヴ」を体感してください。',
+                howToUse: '使い方と機能',
+                guideDesc: '正確なメトロノーム音と、レジェンドの音が同時に鳴ります。その「ズレ」を聴いてグルーヴを感じてください。',
+                visualDesc: '青い波紋がレジェンドのタイミング、黄色い針が正確な拍を示します。',
+                legendTitle: 'レジェンドの特徴解説',
+                legends: {
+                    benson: 'ギター：拍のわずかに前で弾く「プッシュ」奏法。エネルギッシュでドライブ感のあるリズム。',
+                    dexter: 'サックス：極端な「レイドバック（後ノリ）」。拍のかなり後ろで吹くことで、ゆったりとした貫禄を生む。',
+                    garner: 'ピアノ：左手は正確に刻みつつ、右手のメロディを大きく遅らせる独特の「ディレイ」奏法。',
+                    tony: 'ドラム：シンバルレガートをかなり前に突っ込ませる、攻撃的で推進力のあるビート。',
+                    haden: 'ベース：拍の真ん中より少し後ろに「重く」置くことで、バンド全体をどっしりと支える。'
+                },
+                note: '数値は各アーティストの代表的な演奏を分析した近似値です。'
+            }
+        },
+        en: {
+            ui: {
+                start: 'START',
+                presetLabel: 'GROOVE PRESET'
+            },
+            manual: {
+                title: 'LEGEND BEAT Manual',
+                desc: 'A training app that simulates the unique "Micro-timing" of jazz legends. Experience the "living groove" that standard metronomes cannot provide.',
+                howToUse: 'How to Use',
+                guideDesc: 'Hear the precise click and the legend\'s note simultaneously. Feel the "gap" between them.',
+                visualDesc: 'Blue ripples show the legend\'s timing. The yellow needle shows the exact beat.',
+                legendTitle: 'Legend Profiles',
+                legends: {
+                    benson: 'Guitar: Plays slightly ahead of the beat (Push). Creates an energetic, driving feel.',
+                    dexter: 'Sax: Extreme "Laid Back". Playing far behind the beat creates a relaxed, majestic atmosphere.',
+                    garner: 'Piano: Distinctive style where the left hand is steady, but the right hand melody is significantly delayed.',
+                    tony: 'Drums: Pushes the ride cymbal forward aggressively. A driving, propulsive beat.',
+                    haden: 'Bass: Places notes slightly behind the center of the beat (Heavy) to anchor the band.'
+                },
+                note: 'Values are approximations based on analysis of typical performances.'
+            }
+        }
+    };
+
+    createApp({
+        data() {
+            return {
+                bpm: 120,
+                isPlaying: false,
+                isGuideOn: false,
+                showModal: false,
+                currentLang: 'ja', // デフォルト言語
+                countInBars: 1, 
+                currentBar: 0,
+                beatCounter: 0,
+                statusMessage: 'READY',
+                
+                audioReady: false, 
+                ripples: [],
+                selectedPresetKey: 'g_benson', 
+
+                presetGroups: {
+                    "Guitar (Strings)": [
+                        { id: 'g_benson', name: 'George Benson (Push)', offset: -0.015 },
+                        { id: 'g_martino', name: 'Pat Martino (Just)', offset: 0 },
+                        { id: 'g_metheny', name: 'Pat Metheny (Float)', offset: 0.02 },
+                        { id: 'g_scofield', name: 'John Scofield (Laid Back)', offset: 0.045 },
+                        { id: 'g_burrell', name: 'Kenny Burrell (Pocket)', offset: 0.03 }
+                    ],
+                    "Piano (Comping)": [
+                        { id: 'p_garland', name: 'Red Garland (Pocket)', offset: 0.025 },
+                        { id: 'p_kelly', name: 'Wynton Kelly (Bounce)', offset: 0.02 },
+                        { id: 'p_peterson', name: 'Oscar Peterson (Drive)', offset: -0.005 },
+                        { id: 'p_garner', name: 'Erroll Garner (Delay)', offset: 0.08 },
+                        { id: 'p_evans', name: 'Bill Evans (Lyrical)', offset: 0.035 }
+                    ],
+                    "Bass (Pulse)": [
+                        { id: 'b_brown', name: 'Ray Brown (Forward)', offset: -0.02 },
+                        { id: 'b_chambers', name: 'Paul Chambers (Steady)', offset: 0 },
+                        { id: 'b_carter', name: 'Ron Carter (Elastic)', offset: 0.01 },
+                        { id: 'b_haden', name: 'Charlie Haden (Heavy)', offset: 0.06 },
+                        { id: 'b_jaco', name: 'Jaco Pastorius (Grid)', offset: 0 }
+                    ],
+                    "Drums (Ride/Hat)": [
+                        { id: 'd_blakey', name: 'Art Blakey (Hard Bop)', offset: 0 },
+                        { id: 'd_tony', name: 'Tony Williams (Push)', offset: -0.035 },
+                        { id: 'd_elvin', name: 'Elvin Jones (Loose)', offset: 0.04 },
+                        { id: 'd_philly', name: 'Philly Joe (Snap)', offset: -0.01 },
+                        { id: 'd_gadd', name: 'Steve Gadd (Pocket)', offset: 0.015 }
+                    ],
+                    "Sax (Phrasing)": [
+                        { id: 's_dexter', name: 'Dexter Gordon (Late)', offset: 0.09 },
+                        { id: 's_parker', name: 'Charlie Parker (Top)', offset: -0.01 },
+                        { id: 's_trane', name: 'John Coltrane (Straight)', offset: 0.005 },
+                        { id: 's_getz', name: 'Stan Getz (Airy)', offset: 0.05 },
+                        { id: 's_cannon', name: 'Cannonball Adderley (Bounce)', offset: 0.025 }
+                    ]
+                }
+            };
+        },
+        created() {
+            this.synth = null;
+            this.guideSynth = null;
+            this.loop = null;
+            this.ctx = null;
+        },
+        computed: {
+            // 現在の言語設定に基づいたテキストセットを返す
+            t() {
+                return translations[this.currentLang];
+            },
+            currentPreset() {
+                for (const group in this.presetGroups) {
+                    const found = this.presetGroups[group].find(p => p.id === this.selectedPresetKey);
+                    if (found) return found;
+                }
+                return { name: 'Default', offset: 0 };
+            }
+        },
+        mounted() {
+            this.initCanvas();
+            this.animate(); 
+        },
+        methods: {
+            toggleLang() {
+                this.currentLang = this.currentLang === 'ja' ? 'en' : 'ja';
+            },
+            updateBpm() {
+                if (this.audioReady && Tone.Transport.state === 'started') {
+                    Tone.Transport.bpm.value = this.bpm;
+                }
+            },
+            toggleGuide() {
+                this.isGuideOn = !this.isGuideOn;
+            },
+            async togglePlay() {
+                if (this.isPlaying) {
+                    this.stop();
+                } else {
+                    await this.startSequence();
+                }
+            },
+            async startSequence() {
+                try {
+                    await Tone.start();
+                    
+                    if (!this.synth) {
+                        this.synth = new Tone.MembraneSynth({
+                            pitchDecay: 0.02,
+                            octaves: 2,
+                            oscillator: { type: "sine" },
+                            envelope: { attack: 0.001, decay: 0.1, sustain: 0, release: 0.1 }
+                        }).toDestination();
+                    }
+
+                    if (!this.guideSynth) {
+                        this.guideSynth = new Tone.MembraneSynth({
+                            pitchDecay: 0.008,
+                            octaves: 4,
+                            oscillator: { type: "sine" },
+                            envelope: { attack: 0.001, decay: 0.05, sustain: 0, release: 0.05 },
+                            volume: -5
+                        }).toDestination();
+                    }
+                    
+                    this.audioReady = true;
+                    this.start();
+
+                } catch (e) {
+                    console.error("Start Error:", e);
+                    this.statusMessage = "Audio Error: Try Again";
+                }
+            },
+            start() {
+                this.isPlaying = true;
+                this.currentBar = 0;
+                this.beatCounter = 0;
+                this.statusMessage = 'COUNT IN...';
+                
+                Tone.Transport.bpm.value = this.bpm;
+                Tone.Transport.stop();
+                Tone.Transport.cancel();
+
+                this.loop = Tone.Transport.scheduleRepeat((time) => {
+                    const beat = this.beatCounter % 4;
+                    
+                    if (beat === 0) {
+                        this.currentBar++;
+                        if (this.currentBar > this.countInBars) {
+                            this.statusMessage = `${this.currentPreset.name}`;
+                        }
+                    }
+
+                    this.processBeat(time, beat);
+                    this.beatCounter++;
+                }, "4n");
+
+                Tone.Transport.start();
+            },
+            stop() {
+                this.isPlaying = false;
+                this.statusMessage = 'READY';
+                this.currentBar = 0;
+                this.beatCounter = 0;
+                
+                Tone.Transport.stop();
+                Tone.Transport.cancel();
+                
+                if (this.loop !== null) {
+                    Tone.Transport.clear(this.loop);
+                    this.loop = null;
+                }
+            },
+            processBeat(time, beat) {
+                if (this.currentBar <= this.countInBars) {
+                    if(this.guideSynth) this.guideSynth.triggerAttackRelease("C4", "32n", time);
+                    Tone.Draw.schedule(() => {
+                        this.addRipple(beat, '#ff0055');
+                    }, time);
+                } 
+                else {
+                    if (beat === 1 || beat === 3) {
+                        const offset = this.currentPreset.offset;
+                        const grooveTime = time + offset;
+                        
+                        if (this.isGuideOn && this.guideSynth) {
+                            this.guideSynth.triggerAttackRelease("C4", "32n", time);
+                        }
+
+                        if(this.synth) this.synth.triggerAttackRelease("G2", "32n", grooveTime);
+
+                        Tone.Draw.schedule(() => {
+                            this.addRipple(beat, '#00f2ff');
+                        }, grooveTime);
+                    }
+                }
+            },
+            addRipple(beat, color) {
+                this.ripples.push({
+                    radius: 10,
+                    alpha: 1,
+                    color: color,
+                    beat: beat
+                });
+            },
+            initCanvas() {
+                const canvas = this.$refs.canvas;
+                this.ctx = canvas.getContext('2d');
+            },
+            animate() {
+                requestAnimationFrame(this.animate);
+                const ctx = this.ctx;
+                if (!ctx) return;
+
+                const width = 320;
+                const height = 320;
+                const centerX = width / 2;
+                const centerY = height / 2;
+                const radius = 130;
+
+                ctx.clearRect(0, 0, width, height);
+
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                ctx.strokeStyle = '#333';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                for (let i = 0; i < 4; i++) {
+                    const angle = (i * 90 - 90) * (Math.PI / 180);
+                    const x = centerX + Math.cos(angle) * (radius - 12);
+                    const y = centerY + Math.sin(angle) * (radius - 12);
+                    
+                    ctx.fillStyle = (i === 1 || i === 3) ? '#00f2ff' : '#444';
+                    ctx.beginPath();
+                    ctx.arc(x, y, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                let angle = -90 * (Math.PI / 180); 
+                if (this.isPlaying && this.bpm > 0) {
+                    const measureTime = (60 / this.bpm) * 4;
+                    const progress = (Tone.Transport.seconds % measureTime) / measureTime;
+                    angle = (progress * 360 - 90) * (Math.PI / 180);
+                }
+
+                const needleX = centerX + Math.cos(angle) * radius;
+                const needleY = centerY + Math.sin(angle) * radius;
+
+                const grad = ctx.createLinearGradient(centerX, centerY, needleX, needleY);
+                grad.addColorStop(0, 'rgba(0, 242, 255, 0)');
+                grad.addColorStop(1, '#00f2ff');
+
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.lineTo(needleX, needleY);
+                ctx.strokeStyle = grad;
+                ctx.lineWidth = 4;
+                ctx.lineCap = 'round';
+                ctx.stroke();
+
+                for (let i = this.ripples.length - 1; i >= 0; i--) {
+                    let r = this.ripples[i];
+                    const rippleAngle = (r.beat * 90 - 90) * (Math.PI / 180);
+                    const rx = centerX + Math.cos(rippleAngle) * radius;
+                    const ry = centerY + Math.sin(rippleAngle) * radius;
+
+                    ctx.beginPath();
+                    ctx.arc(rx, ry, r.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = r.color;
+                    ctx.globalAlpha = r.alpha;
+                    ctx.fill();
+                    ctx.globalAlpha = 1;
+
+                    r.radius += 3;
+                    r.alpha -= 0.04;
+
+                    if (r.alpha <= 0) this.ripples.splice(i, 1);
+                }
+            }
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>
